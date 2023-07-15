@@ -11,6 +11,7 @@
 
 #include "avrlib/gpio.h"
 #include "avrlib/softspi.h"
+#include "avrlib/lcd_44780.h"
 
 #define MASTER_CLOCK     25000000L
 #define COUNTER_LENGTH   
@@ -18,6 +19,8 @@ static void DDS_init(void);
 static void DDS_write_word(uint16_t wd);
 static void DDS_write_frequency(uint32_t hz);
 static void DDS_write_phase( uint16_t deg );
+
+static uint8_t read_encoder(void);
 
 // 9833 Control Word (address 00)
 // D15  Address 0
@@ -40,9 +43,14 @@ static void DDS_write_phase( uint16_t deg );
 
 int main(int argc, char** argv)
 {
+        GPIO_pin_mode(GPIO_PIN_D2, GPIO_PIN_MODE_INPUT);
+        
         for(int i = 1; i < 1000; i++);
         //SOFTSPI_init(1,2,3);
         DDS_init();
+
+        uint8_t enc = read_encoder();
+        
 
         return 0;
 }
@@ -90,6 +98,17 @@ void DDS_write_phase(uint16_t deg)
         // write it to phase 0 reg
         ph |= 0xc000; // Set D15, D14 to select ph0
         DDS_write_word(ph);
+}
+
+
+uint8_t read_encoder(void)
+{
+        uint8_t rtn = 0;
+        // pd2 and pd3
+
+        rtn = GPIO_read_pin(GPIO_PIN_D2) << 1;
+        rtn |= GPIO_read_pin(GPIO_PIN_D3);
+        return rtn;
 }
 
 
