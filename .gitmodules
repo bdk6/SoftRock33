@@ -1,6 +1,0 @@
-[submodule "firmware/avrlib"]
-	path = firmware/avrlib
-	url = https://github.com/bdk6/avrlib
-[submodule "firmware/DeviceLib"]
-	path = firmware/DeviceLib
-	url = https://github.com/bdk6/DeviceLib
