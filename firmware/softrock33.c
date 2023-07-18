@@ -8,10 +8,14 @@
 #define F_CPU 16000000
 #include <util/delay.h>
 
-
+#include <avr/interrupt.h>
+#include "avrlib/systick.h"
 #include "avrlib/gpio.h"
+#include "avrlib/button.h"
 #include "avrlib/softspi.h"
 #include "avrlib/lcd_44780.h"
+#include "avrlib/encoder.h"
+
 
 #define MASTER_CLOCK     25000000L
 #define COUNTER_LENGTH   
@@ -21,6 +25,8 @@ static void DDS_write_frequency(uint32_t hz);
 static void DDS_write_phase( uint16_t deg );
 
 static uint8_t read_encoder(void);
+static void int_to_string(int32_t);
+static uint8_t intstr[11];  // enough for 9 digits plus sign plus null
 
 // 9833 Control Word (address 00)
 // D15  Address 0
@@ -58,23 +64,59 @@ int main(int argc, char** argv)
 
 void DDS_init(void)
 {
-        SOFTSPI_init(GPIO_PIN_B5, GPIO_PIN_B3, -1);
+        LCD_44780_init2();
+        LCD_44780_clear();
+        LCD_44780_write_string("Hello again, DDS!");
+        SYSTICK_init(CLK_DIV_64);
+        BUTTON_init();
+        
+        //SOFTSPI_init(GPIO_PIN_B5, GPIO_PIN_B3, -1);
+        SOFTSPI_init2();
         // ss on pb2
         SOFTSPI_set_interface(0, GPIO_PIN_C5, 16, SPI_MODE_2_MSB_FIRST, 0);
         DDRB |= 0x08;  // b3 output
+        ENCODER_init();
+        ENCODER_set_count(0,0);
         
         DDS_write_word(0x2100);  // B28 and RESET
-        DDS_write_word(0x2100);
-        _delay_us(5);
-        DDS_write_frequency(6250000L);  // 10 Mhz
+        DDS_write_frequency(60000L);  // 60 KHz
         DDS_write_phase(0);
-        DDS_write_word(0x2000);  // B2b, out of reset
-        _delay_us(50);
-        uint32_t freq = 10737418L; //1073742L;  // Set freq to 100 KHz
-        //DDS_write_word( (uint16_t)(freq & 0x3fff) | 0x4000);
-        //DDS_write_word( (uint16_t)((freq >> 14) & 0x3fff) | 0x4000);
+        DDS_write_word(0x2000);  // Keep B2B set, take out of reset
+        _delay_ms(2000);
+        LCD_44780_clear();
+        LCD_44780_write_string("60000 Hz 2");
+        sei();  // turn on interrupts
 
-        while(1);
+        int32_t cnt = 0;
+        while(1)
+        {
+                _delay_ms(1000);
+                   int_to_string(cnt);
+                 LCD_44780_clear();
+                LCD_44780_write_string(intstr);
+                cnt++;
+                int32_t e = ENCODER_get_count(0);
+                int_to_string(e);
+                //int_to_string(SYSTICK_get_milliseconds());
+                //LCD_44780_clear();
+                LCD_44780_goto(0,1);
+                // LCD_44780_write_string(intstr);
+                int buttons = BUTTON_waiting();
+                //LCD_44780_clear();
+                int_to_string(buttons);
+                LCD_44780_write_string(intstr);
+                
+                if(buttons )
+                {
+                        int b = BUTTON_get_button();
+                        // set freq
+                        //LCD_44780_clear();
+                        LCD_44780_write_string("PRESS:");
+                        int_to_string(b * 10000);
+                        LCD_44780_write_string(intstr);
+                }
+        }
+                
 
 }
 
@@ -111,4 +153,26 @@ uint8_t read_encoder(void)
         return rtn;
 }
 
+static void int_to_string(int32_t num)
+{
+        int idx = 10;
+        uint8_t sign = ' ';
+        if(num < 0)
+        {
+                sign = '-';
+                num = -num;
+        }
+        
+        intstr[idx] = '\0'; // null
+        while(idx > 0)
+        {
+                idx--;
+                intstr[idx] = (uint8_t) (num % 10) + 0x30;
+                num /= 10;
+        }
+        intstr[0] = sign;
+}
+
+        
+                
 

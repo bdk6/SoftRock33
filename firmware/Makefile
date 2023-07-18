@@ -92,13 +92,14 @@ avrlib.a:
 	pwd
 	( cd avrlib;  make avrlib.a; cp avrlib.a ..)
 
-
+devicelib.a:
+	( cd avrlib; make devicelib.a; cp devicelib.a ..)
 
 softrock33.hex:	softrock33.elf
 	avr-objcopy -j .text -j .data -O ihex softrock33.elf softrock33.hex
 
-softrock33.elf:	softrock33.o	avrlib.a
-	$(CC) $(CFLAGS) $(LDFLAGS) -o softrock33.elf softrock33.o -L. -l:avrlib.a $(LIBS)
+softrock33.elf:	softrock33.o	devicelib.a avrlib.a devicelib.a 
+	$(CC) $(CFLAGS) $(LDFLAGS) -o softrock33.elf softrock33.o -L. -l:devicelib.a -l:avrlib.a -l:devicelib.a -l:avrlib.a $(LIBS)
 
 softrock33.o:	softrock33.c
 	$(CC) $(CFLAGS) -c softrock33.c
@@ -113,8 +114,13 @@ fuse:
 	avrdude -cavrisp  -pm8 -P/dev/ttyUSB0 -b19200 -U lfuse:w:0xef:m -U hfuse:w:0xd9:m 
 
 clean:
-	rm -rf *.o $(PRG).elf *.eps *.png *.pdf *.bak 
+	rm -rf *.o *.a $(PRG).elf *.eps *.png *.pdf *.bak 
 	rm -rf *.lst *.map $(EXTRA_CLEAN_FILES)
+clean_all:
+	rm -rf *.o *.a $(PRG).elf *.eps *.png *.pdf *.bak
+	rm -rf *.lst *.map $(EXTRA_CLEAN_FILES)
+	(cd avrlib;	make clean)
+
 ################################################################################
 # this will create an ELF file!
 #lcbdk:  lcbdk.o lcd_44780.o

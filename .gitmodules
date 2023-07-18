@@ -1,0 +1,3 @@
+[submodule "firmware/avrlib"]
+	path = firmware/avrlib
+	url = https://github.com/bdk6/avrlib
