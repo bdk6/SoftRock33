@@ -18,6 +18,7 @@
 
 
 #define MASTER_CLOCK     25000000L
+#define MAX_OUTPUT_FREQ  11000000L
 #define COUNTER_LENGTH   
 static void DDS_init(void);
 static void DDS_write_word(uint16_t wd);
@@ -26,7 +27,8 @@ static void DDS_write_phase( uint16_t deg );
 
 static uint8_t read_encoder(void);
 static void int_to_string(int32_t);
-static uint8_t intstr[11];  // enough for 9 digits plus sign plus null
+//static uint8_t intstr[11];  // enough for 9 digits plus sign plus null
+static uint8_t intstr[9];   // 8 digits plus null
 
 // Translate keypad scan codes to characters
 //    7  8  9  >
@@ -124,25 +126,42 @@ static void keypad_add(uint8_t ch)
         keypad_string[KP_STRING_LENGTH - 2] = ch;
 }
 
-static void keypadd_remove(void)
+static void keypad_remove(void)
 {
         for (int i = KP_STRING_LENGTH - 1; i > 0; i--)
         {
-                keypad_string[i] == keypad_string[i-1];
+                keypad_string[i] = keypad_string[i-1];
         }
         keypad_string[0] = ' ';
 }
 
-        
+
+static void show_int_at( int x, int y, int32_t val)
+{
+        int_to_string(val);
+        cli();
+        LCD_44780_goto(x,y);
+        LCD_44780_write_string(intstr);
+        sei();
+}
+
+
 int main(int argc, char** argv)
 {
         GPIO_pin_mode(GPIO_PIN_D2, GPIO_PIN_MODE_INPUT);
         
         for(int i = 1; i < 1000; i++);
         //SOFTSPI_init(1,2,3);
+        LCD_44780_init2();
+        LCD_44780_clear();
+        LCD_44780_write_string("SoftRock 33");
+        SYSTICK_init(CLK_DIV_64);
+        BUTTON_init();
+        SOFTSPI_init2();
+        
         DDS_init();
 
-        uint8_t enc = read_encoder();
+        _delay_ms(2000);
         run();
         
 
@@ -152,14 +171,12 @@ int main(int argc, char** argv)
 
 void DDS_init(void)
 {
-        LCD_44780_init2();
-        LCD_44780_clear();
-        LCD_44780_write_string("Hello again, DDS!");
-        SYSTICK_init(CLK_DIV_64);
-        BUTTON_init();
+        //SYSTICK_init(CLK_DIV_64);
+        //BUTTON_init();
         
         //SOFTSPI_init(GPIO_PIN_B5, GPIO_PIN_B3, -1);
-        SOFTSPI_init2();
+        //SOFTSPI_init2();
+        
         // ss on pb2
         SOFTSPI_set_interface(0, GPIO_PIN_C5, 16, SPI_MODE_2_MSB_FIRST, 0);
         DDRB |= 0x08;  // b3 output
@@ -173,64 +190,9 @@ void DDS_init(void)
         DDS_write_frequency(60000L);  // 60 KHz
         DDS_write_phase(0);
         DDS_write_word(0x2000);  // Keep B2B set, take out of reset
-        _delay_ms(2000);
-        LCD_44780_clear();
-        LCD_44780_write_string("60000 Hz");
-        sei();  // turn on interrupts
-
-
+ 
         current_mode = MODE_NORMAL;
         is_sweeping = 0;
-        
-        int32_t cnt = 0;
-        while(1)
-        {
-                _delay_ms(1000);
-                int_to_string(cnt);
-                //   LCD_44780_clear();
-                //  LCD_44780_write_string(intstr);
-                cnt++;
-                
-                int32_t e = ENCODER_get_count(0);
-                if (e < 0)
-                {
-                        e = 0;
-                        ENCODER_set_count(0,0);
-                }
-                //   int buttons = BUTTON_waiting();
-                int_to_string(e);
-                //int_to_string(SYSTICK_get_milliseconds());
-                //LCD_44780_clear();
-                cli();
-                LCD_44780_goto(0,1);
-                sei();
-                // LCD_44780_write_string(intstr);
-                int buttons = BUTTON_waiting();
-                //LCD_44780_clear();
-                //  int_to_string(buttons);
-                //  LCD_44780_write_string(intstr);
-                
-                if(buttons )
-                {
-                        int b = BUTTON_get_button();
-                        // set freq
-                        //LCD_44780_clear();
-                        //         LCD_44780_write_string("PRESS:");
-                        int_to_string(b * 10000);
-                        //          LCD_44780_write_string(intstr);
-                }
-                int waiting = KEYPAD_waiting();
-                int_to_string(waiting);
-
-                cli();
-                LCD_44780_goto(0,1);
-                //  LCD_44780_write_string("Key");
-                   LCD_44780_write_string(keypad_string);
-                //  LCD_44780_write_string("END");
-                sei();
-        }
-                
-
 }
 
 void DDS_write_word(uint16_t wd)
@@ -256,36 +218,83 @@ void DDS_write_phase(uint16_t deg)
 }
 
 
-//uint8_t read_encoder(void)
-//{
-//        uint8_t rtn = 0;
-//        // pd2 and pd3
 
-//        rtn = GPIO_read_pin(GPIO_PIN_D2) << 1;
-//        rtn |= GPIO_read_pin(GPIO_PIN_D3);
-//        return rtn;
+// Save for later!
+//static void int_to_string(int32_t num)
+//{
+//        int idx = 10;
+//        uint8_t sign = ' ';
+//        if(num < 0)
+//        {
+//                sign = '-';
+//                num = -num;
+//        }
+//        for(int i = 0; i < idx; i++)
+//        {
+//                intstr[i] = ' ';
+//        }
+//        intstr[idx] = '\0'; // null
+//        while(idx > 0)
+//        {
+//                idx--;
+//                intstr[idx] = (uint8_t) (num % 10) + 0x30;
+//                num /= 10;
+//                if(num == 0)
+//                {
+//                        break;
+//                }
+//                
+//        }
+//        intstr[0] = sign;
 //}
+
+
 
 static void int_to_string(int32_t num)
 {
-        int idx = 10;
-        uint8_t sign = ' ';
-        if(num < 0)
+        int idx = 8;
+        intstr[idx] = '\0';
+        for(int i = 0; i < idx; i++)
         {
-                sign = '-';
-                num = -num;
+                intstr[i] = ' ';
         }
-        
-        intstr[idx] = '\0'; // null
         while(idx > 0)
         {
                 idx--;
                 intstr[idx] = (uint8_t) (num % 10) + 0x30;
                 num /= 10;
+                if(num == 0)
+                {
+                        break;
+                }
         }
-        intstr[0] = sign;
 }
 
+static int isdigit(uint8_t ch)
+{
+        int rtn = 0;
+        if (ch >= '0' && ch <= '9')
+        {
+                rtn = 1;
+        }
+        return rtn;
+}
+
+static int32_t string_to_int(uint8_t* str)
+{
+        int32_t rtn = 0;
+        while((*str != 0) && (!isdigit(*str)))
+        {
+                str++;
+        }
+        while(isdigit(*str))
+        {
+                rtn *= 10;
+                rtn += *str - '0';
+                str++;
+        }
+        return rtn;
+}
 
 typedef enum KEY_RESULT
 {
@@ -295,45 +304,51 @@ typedef enum KEY_RESULT
         KEY_RESULT_MODE,
         KEY_RESULT_STORE,
         KEY_RESULT_RECALL,
+        KEY_RESULT_DELETE,
         KEY_RESULT_MAX
 }KeyResult_t;
 
 
 // process a key
     
-static KeyResult_t  process_key(uint8_t ky)
+static KeyResult_t  process_key(int ky)
 {
-  KeyResult_t rtn = 0;
+  KeyResult_t rtn = KEY_RESULT_NONE;
+  if(ky >= 0)
+  {
   uint8_t ch = keytable[ky];
-  if(ky == '*')   // mode
+  if(ch == '*')   // mode
   {
           rtn = KEY_RESULT_MODE;
   }
-  else if (ky == '#') // enter
+  else if (ch == '#') // enter
   {
           rtn = KEY_RESULT_ENTER;
   }
-  else if (ky == 'b') // backspace
+  else if (ch == 'B') // backspace
   {
           // delete one
+          keypad_remove();
+          rtn = KEY_RESULT_DELETE;
   }
-  else if (ky == '?')  // I dunno
+  else if (ch == '?')  // I dunno
   {
+          rtn = KEY_RESULT_NONE;
   }
-  else if (ky == 's')   // store
+  else if (ch == 's')   // store
   {
           rtn = KEY_RESULT_STORE;
   }
-  else if (ky == 'r')  // recall
+  else if (ch == 'r')  // recall
   {
           rtn = KEY_RESULT_RECALL;
   }
   else    // add digits
   {
-          keypad_add(ky);
+          keypad_add(ch);
+          rtn = KEY_RESULT_DIGIT;
   }
-
-
+  }
   return rtn;
 }
 
@@ -349,151 +364,139 @@ static KeyResult_t  process_key(uint8_t ky)
 
 static void run(void)
 {
-        /*
-        while(1)
-        {
-                // sweeping?
-                if (is_sweeping != 0)
-                {
-                }
-                // process keys
-                // process encoder
-                
-        }
+  cli();
+  LCD_44780_clear();
+  sei();
         
-        // sweep?
-        // process keys
-        int ky = KEYPAD_get_key();
-        int key_result = 0;
-        if(ky >= 0)
-        {
-                key_result = process_key( (uint8_t) ky);
-        }
+  while(1)
+  {
+    int32_t enc = ENCODER_get_count(0);
+    if (enc < 0)
+    {
+      enc = 0;
+      ENCODER_set_count(0,enc);
+    }
+    if (!is_sweeping && input_state == INPUT_STATE_SINGLE)
+    {
+      DDS_write_frequency(enc);
+      // update display
+    }
+    show_int_at(0,0,enc);
         
-        //    get rtn
-        // process encoder
-        int32_t enc = ENCODER_get_count(0);
-        if (enc < 0)
-        {
-                enc = 0;
-                ENCODER_set_count(0,enc);
-        }
-        
-        
-        //    get rtn
-        // process button
-        int b = BUTTON_get_button();
-        if(b == 0 || key_result == KEY_ENTER)  // button 0
-        {
-                // First two only for button press
-                if (input_state == INPUT_STATE_NORMAL && b == 0)
-                {
-                        input_state = INPUT_STATE_NORMAL_PAUSE;
-                }
-                else if (input_state == INPUT_STATE_NORMAL_PAUSE && b == 0)
-                {
-                        DDS_write_frequency( (uint32_t) enc);
-                        input_state = INPUT_STATE_NORMAL;
-                        // update display
-                        cli();
-                        LCD_44780_goto(0,0);
-                        int_to_string(enc);
-                        LCD_44780_write_string(intstr);
-                        sei();
-                }
-                // These for button or ENTER key (#)
-                else if (input_state == INPUT_STATE_F1)
-                {
-                        // set f1
-                        input_state = INPUT_STATE_F2;
-                }
-                else if (input_state == INPUT_STATE_F2)
-                {
-                        // set f2
-                        input_state = INPUT_STATE_TIME;
-                }
-                else if (input_state == INPUT_STATE_TIME)
-                {
-                        // set time
-                        // start sweep
-                        is_sweeping = 1;
-                        INPUT_STATE = INPUT_STATE_NORMAL;
-                }
+    int b = BUTTON_get_button();
+    int ky = KEYPAD_get_key();
+    if(ky >= 0)
+    {
+            show_int_at(0,1,ky);
+    }
+    
+    KeyResult_t key_result = process_key(ky);
 
-                // These only for ENTER key (#)
-                else if ( input_state == xxx && key_result == KEY_ENTER)
-                {
-                }
-                
-        */
-  int32_t enc = ENCODER_get_count(0);
-  if (enc < 0)
-  {
-    enc = 0;
-    ENCODER_set_count(0,enc);
-  }
-  if (!is_sweeping && input_state == INPUT_STATE_SINGLE)
-  {
-    write_frequency(enc);
-    // update display
-  }
-        
-  int b = BUTTON_get_button();
-  int ky = KEYPAD_get_key();
-  KeyResult_t key_result = process_key(ky);
-  //////////////////  Alternate ///////////////////////
-  switch(input_state)
-  {
-  case INPUT_STATE_SINGLE:
-    if (b == 0)
+    // TODO:  For now, we separate keypad and encoder
+    // inputs.  Keypad entry must use ENTER key and
+    // encoder entry must use button.  If keypad entry
+    // is used, set freq to it and also set encoder count
+    // to keypad number.  Later, we will integrate the two.
+    // maybe ...
+    switch(input_state)
     {
-      input_state = INPUT_STATE_SINGLE_PAUSE;
-    }
-    else if (key_result == KEY_RESULT_MODE)
-    {
-      input_state = INPUT_STATE_F1;
-    }
-    else if (key_result == KEY_RESULT_STORE)
-    {
-    }
-    else if (key_result == KEY_RESULT_RECALL)
-    {
-    }
-    break;
+    case INPUT_STATE_SINGLE:
+      if (b == 0)
+      {
+        input_state = INPUT_STATE_SINGLE_PAUSE;
+      }
+      else if (key_result == KEY_RESULT_ENTER)
+      {
+              int32_t f = string_to_int(keypad_string);
+        if (f < MAX_OUTPUT_FREQ)
+        {
+                DDS_write_frequency(f);
+                ENCODER_set_count(0,f);
+                keypad_clear();
+        }
+        else
+        {
+                // TODO warn!
+        }
+      }
+      else if (key_result == KEY_RESULT_MODE)
+      {
+        input_state = INPUT_STATE_F1;
+        //int32_t e = ENCODER_get_count(0);
+      
+      }
+      else if (key_result == KEY_RESULT_STORE)
+      {
+      }
+      else if (key_result == KEY_RESULT_RECALL)
+      {
+      }
+      break;
+      
     case INPUT_STATE_SINGLE_PAUSE:
-    if (b == 0 || key_result == KEY_RESULT_ENTER)
-    {
-      // set freq
-      input_state = INPUT_STATE_SINGLE;
-    }
-    break;
-  case INPUT_STATE_F1:
-    if (b == 0 || key_result == KEY_RESULT_ENTER)
-    {
-      // set f1
-      input_state == INPUT_STATE_F2;
-    }
-    break;
+      if (b == 0 || key_result == KEY_RESULT_ENTER)
+      {
+        // set freq
+              int32_t f = ENCODER_get_count(0);
+              DDS_write_frequency(f);
+        input_state = INPUT_STATE_SINGLE;
+      }
+      break;
+      
+    case INPUT_STATE_F1:
+      if (b == 0 || key_result == KEY_RESULT_ENTER)
+      {
+        // set f1
+        input_state == INPUT_STATE_F2;
+      }
+      break;
 
-  case INPUT_STATE_F2:
-    if (b == 0 || key_result == KEY_RESULT_ENTER)
-    {
-      // set f2
-      input_state == INPUT_STATE_TIME;
-    }
-    break;
+    case INPUT_STATE_F2:
+      if (b == 0 || key_result == KEY_RESULT_ENTER)
+      {
+        // set f2
+        input_state == INPUT_STATE_TIME;
+      }
+      break;
 
-  case INPUT_STATE_TIME:
-    if (b == 0 || key_result == KEY_RESULT_ENTER)
-    {
-      // check for valid time
-      // set time
-      // calculate and start sweeping
-      input_state == INPUT_STATE_SINGLE;
+    case INPUT_STATE_TIME:
+      if (b == 0 || key_result == KEY_RESULT_ENTER)
+      {
+        // check for valid time
+        // set time
+        // calculate and start sweeping
+        input_state == INPUT_STATE_SINGLE;
+      }
+      break;
+    default:
+      break;
     }
-    break;
-  default:
-    break;
+    cli();
+    LCD_44780_goto(9,1);
+    switch(input_state)
+    {
+    case INPUT_STATE_SINGLE:
+            LCD_44780_write_string("Input   ");
+            break;
+    case INPUT_STATE_SINGLE_PAUSE:
+            LCD_44780_write_string("Pause   ");
+            break;
+    case INPUT_STATE_F1:
+            LCD_44780_write_string("F1      ");
+            break;
+    case INPUT_STATE_F2:
+            LCD_44780_write_string("F2      ");
+            break;
+    case INPUT_STATE_TIME:
+            LCD_44780_write_string("TIME    ");
+            break;
+    }
+    sei();
+
+    cli();
+    LCD_44780_goto(8,0);
+    LCD_44780_write_string(keypad_string);
+    sei();
   }
 }
 
